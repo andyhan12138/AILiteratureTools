@@ -35,7 +35,7 @@ zsh -ic './snowball.sh "<种子>" [更多种子…] --topic "<本次思路>" [--
 - **种子**:arxiv id / DOI / INSPIRE recid / ADS bibcode / 直接标题,**可多篇**(图取并集);开头连续的非 `--` 参数都当种子。
 - 也可直接调脚本:`python3 skills/survey-snowball/scripts/snowball.py --seeds A B --topic "…"`。
 - `--depth` 后向闭包深度(默认 2);`--no-forward` 只做后向;`--reuse` 复用 `.cache` 已完成步骤;`--analyze-cap N` 临时改 M。
-- 产物:`notes/snowball/<name>/` —— `report.md`(三轴综述)+ `cards.md`(逐篇卡片)+ `candidates.md`(可按相关性/被引两种排序)+ `data.json`。
+- 产物:`notes/snowball/<name>/` —— `report.md`(三轴综述)+ `cards.md`(逐篇卡片,**摘要默认折叠、点击展开**)+ `candidates.md`(可按相关性/被引两种排序)+ `data.json`。
 
 跑完向用户汇报:种子解析情况、候选池规模 + **层分布**、入选 M 篇 + 立场分布、报告路径;ADS 缺席要点名(只跑了 INSPIRE)。
 

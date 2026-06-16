@@ -109,6 +109,10 @@ def render_cards(works):
         L.append(f"- 作者: {au} · 年份: {w.get('year','?')} · 来源: {'/'.join(w.get('sources',[]))} · 路径: {'/'.join(w.get('via',[]))}\n")
         L.append(f"- **问题**: {c.get('problem','')}\n- **方法**: {c.get('method','')}\n- **结果**: {c.get('result','')}\n")
         L.append(f"- **对本思路立场**: **{c.get('stance','?')}** — {c.get('reason','')}\n")
+        ab = (w.get("abstract") or "").strip()
+        if ab:
+            # 摘要默认折叠,点 <summary> 展开(GitHub 等支持 <details>)
+            L.append(f"\n<details>\n<summary>📄 摘要(点击展开)</summary>\n\n{ab}\n\n</details>\n")
     return "".join(L)
 
 
