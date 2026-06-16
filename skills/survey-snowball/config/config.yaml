@@ -1,0 +1,25 @@
+# ============================================================
+# survey-snowball 配置 —— 改这里即可,不用动脚本
+# 引文图驱动的专题调研:种子论文 → 后向引文闭包 + 前向施引邻域 → 去重截断
+#   → title 初筛(四档) → abstract 逐篇卡片 → 三轴综述
+# 数据源:INSPIRE(免 key) + NASA ADS(需环境变量 ADS_DEV_KEY;缺失则只跑 INSPIRE)
+# ============================================================
+
+graph:
+  backward_depth: 2     # 后向闭包深度(参考文献的参考文献…);可被 --depth 覆盖
+  forward: true         # 前向:施引论文 + 施引者的参考文献(固定 2-hop,「引它的文章引的文章」)
+  fanout_cap: 200       # 单节点展开上限 K:任一方向超过 K 篇按被引降序保留前 K(治热门节点)
+  expand_citers: 150    # 前向只对前 N 个高被引【施引者】再取其参考文献(控调用量)
+  pool_cap: 3000        # 去重后候选池总上限 N;超出按【第一层优先 → 被引降序】截断
+
+screen:                 # title 初筛(DeepSeek,需 DEEPSEEK_API_KEY)
+  score_model: deepseek-v4-flash
+  batch_size: 15        # 每批塞多少个标题
+  pass_levels: [非常相关, 相关]   # 进 abstract 分析的档位;更严→[非常相关],更宽→加"不相关"
+  analyze_cap: 40       # 进 abstract 分析的硬上限 M;超出按【相关性 → 第一层优先 → 被引】截断
+
+synthesize:
+  card_model: deepseek-v4-flash   # 逐篇证据卡片(初筛性质)
+  report_model: deepseek-v4-pro   # 三轴综述(前人做了什么 / 可行性 / 突破口)
+
+out_dir: notes/snowball # 输出根目录(相对项目根),实际写到 <out_dir>/<name>/

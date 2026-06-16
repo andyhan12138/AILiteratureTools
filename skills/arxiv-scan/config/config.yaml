@@ -1,0 +1,27 @@
+# ============================================================
+# arxiv-scan 配置  —— 改这里即可，不用动脚本
+# 流程:拉取板块当日全部论文 → 模型逐篇判四档+一句话 → 前两档的全文总结 → 整合日报
+# 注意:筛选完全交给模型，这里【不】配关键词、也不走 arxiv 关键词搜索。
+# ============================================================
+
+# 要扫的 arxiv 板块 (只按 板块 + 当日日期 拉全部，不做关键词过滤)
+categories:
+  - gr-qc
+  - astro-ph.HE
+  - astro-ph.IM
+  - nucl-th
+
+options:
+  timezone: UTC              # 按此时区把"日期"换算成 UTC 提交窗口(arxiv 用 UTC)
+  max_pages: 6               # 每板块最多翻几页 (每页 100 篇),防跑飞
+
+  # 模型 (走 DeepSeek HTTP API，需要环境变量 DEEPSEEK_API_KEY)
+  score_model: deepseek-v4-flash      # 打相关度分用
+  summary_model: deepseek-v4-flash    # 全文总结用
+  batch_size: 12             # 每次打分塞多少篇摘要 (越大越省调用，但响应越长)
+
+  # 初筛:模型把每篇判成 四档(非常相关/相关/不相关/完全不相关);下面列出的档位才做全文总结
+  pass_levels: [非常相关, 相关]   # 想更严→只留[非常相关];更宽→加"不相关"
+  max_summarize: 50          # 通过初筛的硬上限 (防某天命中太多烧钱);超出按档位从高到低截断
+
+  out_dir: notes/arxiv_daily # 日报输出根目录 (相对项目根),实际写到 <out_dir>/<YYYYMM>/<DD>_scan.md
