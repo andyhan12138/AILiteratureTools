@@ -26,12 +26,19 @@ LEVEL_RANK = {"非常相关": 3, "相关": 2, "不相关": 1, "完全不相关":
 
 def run(cmd):
     sys.stderr.write("  $ " + " ".join(os.path.basename(c) if str(c).endswith('.py') else str(c) for c in cmd) + "\n")
-    p = subprocess.run(cmd, capture_output=True, text=True)
-    sys.stderr.write(p.stderr)
-    if p.returncode != 0:
-        raise RuntimeError(f"子步骤失败(exit {p.returncode})")
-    return (p.stdout.strip().splitlines() or [""])[-1]
-
+    sys.stderr.flush()
+    # 启动子进程，不捕获输出，直接继承父进程的标准流
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    output_lines = []
+    # 逐行读取并实时输出（同时保存用于返回值）
+    for line in p.stdout:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        output_lines.append(line.strip())
+    return_code = p.wait()
+    if return_code != 0:
+        raise RuntimeError(f"子步骤失败(exit {return_code})")
+    return (output_lines[-1] if output_lines else "")
 
 def load_cfg(p):
     import yaml
@@ -163,6 +170,7 @@ def main():
              "--depth", str(depth), "--forward", "0" if args.no_forward else "1",
              "--fanout-cap", str(g["fanout_cap"]), "--expand-citers", str(g["expand_citers"]),
              "--pool-cap", str(g["pool_cap"])])
+    data = json.load(open(graph, encoding="utf-8"))
     data = json.load(open(graph, encoding="utf-8"))
     seeds = data["seeds"]
     sys.stderr.write(f"候选池 {data['stats']['pool_kept']} 篇 · 层分布(保留){data['stats']['depth_dist_kept']}\n")
