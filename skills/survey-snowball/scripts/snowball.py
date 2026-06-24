@@ -11,7 +11,7 @@ snowball.py —— 编排器:种子论文 → 引文图 → title 初筛 → abs
   6) synthesize.py     DeepSeek-V4-pro 出三轴综述
   7) 落盘              notes/snowball/<name>/  report.md + cards.md + candidates.md + *.json
 
-需要 DEEPSEEK_API_KEY;ADS 需 ADS_DEV_KEY(缺则只用 INSPIRE)。建议用 zsh -ic 包一层。
+需要 DEEPSEEK_API_KEY;可选 ADS_DEV_KEY / SERPAPI_API_KEY 用于启用对应数据源。建议用 zsh -ic 包一层。
 """
 import argparse, json, os, re, subprocess, sys
 
@@ -93,6 +93,8 @@ def link_of(w):
         return f"https://ui.adsabs.harvard.edu/abs/{w['bibcode']}"
     if w.get("recid"):
         return f"https://inspirehep.net/literature/{w['recid']}"
+    if w.get("url"):
+        return w["url"]
     return ""
 
 

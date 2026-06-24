@@ -20,7 +20,7 @@ argument-hint: "[种子 arxiv/doi/recid/bibcode/标题 …] [--topic \"本次思
 
 ## 0. 前置
 
-- **API key**:`DEEPSEEK_API_KEY`(初筛/卡片/综述都要);`ADS_DEV_KEY`(可选,缺则只用 INSPIRE,astro 覆盖变弱)。
+- **API key**:`DEEPSEEK_API_KEY`(初筛/卡片/综述都要);`ADS_DEV_KEY`(可选,缺则跳过 ADS,astro 覆盖变弱);`SERPAPI_API_KEY`(可选,通过 SerpApi 启用 Google Scholar 搜索源;Google Scholar 无官方公开 API,不直接抓 scholar.google.com)。
   - 写在 `~/.zshrc` → 运行时用 `zsh -ic '...'` 包一层;或放进 `.claude/settings.local.json` 的 `env`。
 - **相关性标尺**(title 初筛的依据)三块按需组合,至少一项:
   - **(a) 本次思路** `--topic "…"` —— 最贴合"调研某个具体思路",**推荐总是给**。

@@ -36,7 +36,8 @@ def merge(pool, rec, depth, via):
         return
     cur = pool[k]
     # 补齐缺失 id / 取更全的元数据
-    for f in ("doi", "arxiv", "recid", "bibcode", "abstract"):
+    for f in ("doi", "arxiv", "recid", "bibcode", "abstract", "url",
+              "scholar_result_id", "scholar_cites_id", "scholar_cluster_id"):
         if not cur.get(f) and rec.get(f):
             cur[f] = rec[f]
     if not cur.get("title") and rec.get("title"):
@@ -171,11 +172,16 @@ def main():
                               [x for k, x in pool.items() if k not in seed_keys]))
     depth_dist_kept = dict(Counter(w.get("depth") for w in works))
 
-    # 瘦身:候选池阶段不带 abstract(留给 make_cards 阶段按需取),减小体积
+    # 瘦身:候选池阶段默认不带 abstract(留给 make_cards 阶段按需取),减小体积。
+    # Scholar 只能提供 snippet,没有后续摘要接口,所以保留它的短片段。
     slim = []
     for w in works:
-        slim.append({k: w.get(k) for k in ("key", "title", "year", "doi", "arxiv",
-                     "recid", "bibcode", "citation_count", "authors", "depth", "via", "sources")})
+        item = {k: w.get(k) for k in ("key", "title", "year", "doi", "arxiv",
+                "recid", "bibcode", "url", "scholar_result_id", "scholar_cites_id",
+                "scholar_cluster_id", "citation_count", "authors", "depth", "via", "sources")}
+        if "scholar" in (w.get("sources") or []) and w.get("abstract"):
+            item["abstract"] = w["abstract"]
+        slim.append(item)
 
     stats = {"seeds_resolved": len(seed_recs), "pool_unique": n_before,
              "pool_kept": len(slim), "pool_truncated": truncated,

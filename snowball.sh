@@ -7,7 +7,7 @@
 # 种子可给多篇(arxiv id / DOI / INSPIRE recid / ADS bibcode / 直接标题),图取并集。
 # 相关性标尺三选其一或组合:--topic(本次思路) / --use-interest(长期画像) / 种子主题(默认就用,--no-seed 关)。
 #
-# 需要环境变量:DEEPSEEK_API_KEY(初筛/卡片/综述);ADS_DEV_KEY(可选,缺则只用 INSPIRE)。
+# 需要环境变量:DEEPSEEK_API_KEY(初筛/卡片/综述);ADS_DEV_KEY(可选);SERPAPI_API_KEY(可选,Google Scholar 搜索源)。
 # 若 key 写在 ~/.zshrc,请在交互式终端里直接运行本脚本(或用 zsh -ic 包一层)。
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -28,7 +28,10 @@ if [ -z "$DEEPSEEK_API_KEY" ]; then
   echo "   若已写入 ~/.zshrc,请在交互式终端里直接运行;否则先: export DEEPSEEK_API_KEY=sk-..."
 fi
 if [ -z "$ADS_DEV_KEY" ]; then
-  echo "ℹ️  未检测到 ADS_DEV_KEY → 只用 INSPIRE 单源(astro 覆盖会变弱)。申请: ui.adsabs.harvard.edu → Account → API Token"
+  echo "ℹ️  未检测到 ADS_DEV_KEY → 跳过 ADS(astro 覆盖会变弱)。申请: ui.adsabs.harvard.edu → Account → API Token"
+fi
+if [ -z "$SERPAPI_API_KEY" ] && [ -z "$SERP_API_KEY" ]; then
+  echo "ℹ️  未检测到 SERPAPI_API_KEY → 跳过 Google Scholar 搜索源。"
 fi
 
 python3 skills/survey-snowball/scripts/snowball.py --seeds "${SEEDS[@]}" "$@"

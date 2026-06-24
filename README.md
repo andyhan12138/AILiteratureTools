@@ -1,6 +1,6 @@
 # AI Literature Tools
 
-面向物理 / 天体物理科研的两个文献自动化工具,用 LLM(DeepSeek)+ 学术数据库(arXiv / INSPIRE-HEP / NASA ADS)做**每日 arxiv 初筛**和**引文图专题调研**。
+面向物理 / 天体物理科研的两个文献自动化工具,用 LLM(DeepSeek)+ 学术数据库(arXiv / INSPIRE-HEP / NASA ADS / Google Scholar via SerpApi)做**每日 arxiv 初筛**和**引文图专题调研**。
 
 两者都既是 [Claude Code](https://claude.com/claude-code) 技能(`skills/<name>/SKILL.md`),也能脱离 Claude、直接用根目录的启动壳跑——底层全是纯 Python 管线。
 
@@ -30,7 +30,8 @@
 - **Python 3** + 依赖:`pip install requests pyyaml`
 - **API key(环境变量)**:
   - `DEEPSEEK_API_KEY` —— 两个工具都要(打分/总结/卡片/综述)。
-  - `ADS_DEV_KEY` —— 仅 `survey-snowball` 可选;无则只用 INSPIRE 单源(astro 覆盖变弱)。申请:`ui.adsabs.harvard.edu` → Account → API Token。
+  - `ADS_DEV_KEY` —— 仅 `survey-snowball` 可选;无则跳过 ADS(astro 覆盖变弱)。申请:`ui.adsabs.harvard.edu` → Account → API Token。
+  - `SERPAPI_API_KEY` —— 仅 `survey-snowball` 可选;用于通过 SerpApi 调 Google Scholar 搜索源。Google Scholar 没有官方公开 API,本项目不直接抓取 scholar.google.com。
   - key 若写在 `~/.zshrc`(只对交互式 shell 可见),运行时用 `zsh -ic './scan.sh …'` 包一层,或写进环境。
 
 ## 目录结构

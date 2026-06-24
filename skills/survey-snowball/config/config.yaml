@@ -2,7 +2,8 @@
 # survey-snowball 配置 —— 改这里即可,不用动脚本
 # 引文图驱动的专题调研:种子论文 → 后向引文闭包 + 前向施引邻域 → 去重截断
 #   → title 初筛(四档) → abstract 逐篇卡片 → 三轴综述
-# 数据源:INSPIRE(免 key) + NASA ADS(需环境变量 ADS_DEV_KEY;缺失则只跑 INSPIRE)
+# 数据源:INSPIRE(免 key) + NASA ADS(需 ADS_DEV_KEY) + Google Scholar 搜索(需 SERPAPI_API_KEY);
+# 每个源都会先联网探测,能连上的才加入。
 # ============================================================
 
 graph:

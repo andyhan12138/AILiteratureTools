@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-sources.py —— 引文图的数据源客户端:INSPIRE-HEP(免 key) + NASA ADS(需 ADS_DEV_KEY)。
+sources.py —— 引文图的数据源客户端:INSPIRE-HEP(免 key) + NASA ADS(需 ADS_DEV_KEY)
+             + Google Scholar 搜索(经 SerpApi,需 SERPAPI_API_KEY)。
 
 对每个数据源提供统一的三件事:
   - resolve(identifier)        把 arxiv/doi/recid/bibcode/标题 解析成本库的种子记录
   - backward(node)             取该节点的【参考文献】(它引的)
   - forward(node)              取【施引该节点的论文】(引它的),按被引降序
+Scholar 额外提供 search(query),可直接做 Google Scholar 搜索。
 
 返回的记录统一成一个 dict(见 normalize / blank_rec),关键字段:
   key(规范去重键) title year doi arxiv recid bibcode citation_count authors abstract sources
 
 设计:
   - ADS 的 references()/citations() 一次分页查询就带回完整元数据(含 abstract),最省调用 → 优先。
+  - Google Scholar 无官方公开 API;这里仅通过 SerpApi 做搜索/施引补充,不直接抓 scholar.google.com。
   - INSPIRE 的参考文献内嵌在记录里(无完整元数据)→ 收集 recid/arxiv 后再批量解析(同次带回 abstract)。
   - 任一源缺失(无 token / 网络错误)只告警、跳过,不让整条流水线崩。
 
@@ -27,6 +30,7 @@ except Exception:
 UA = "survey-snowball/1.0 (literature toolchain; mailto via ADS token only)"
 INSPIRE_API = "https://inspirehep.net/api/literature"
 ADS_API = "https://api.adsabs.harvard.edu/v1/search/query"
+SERPAPI_API = "https://serpapi.com/search.json"
 
 ARXIV_RE = re.compile(r"^\s*(?:arxiv:)?(\d{4}\.\d{4,5})(?:v\d+)?\s*$", re.I)
 OLD_ARXIV_RE = re.compile(r"^\s*(?:arxiv:)?([a-z\-]+(?:\.[A-Z]{2})?/\d{7})(?:v\d+)?\s*$", re.I)
@@ -39,7 +43,8 @@ RECID_RE = re.compile(r"^\s*(?:recid:|inspire:)?(\d{3,9})\s*$", re.I)
 def blank_rec():
     return {"key": None, "title": "", "year": None, "doi": None, "arxiv": None,
             "recid": None, "bibcode": None, "citation_count": 0, "authors": [],
-            "abstract": "", "sources": []}
+            "abstract": "", "url": None, "scholar_result_id": None,
+            "scholar_cites_id": None, "scholar_cluster_id": None, "sources": []}
 
 
 def norm_arxiv(a):
@@ -59,7 +64,7 @@ def norm_title(t):
 
 
 def canonical_key(rec):
-    """规范去重键:DOI > arXiv > inspire recid > ads bibcode > 归一标题。"""
+    """规范去重键:DOI > arXiv > inspire recid > ads bibcode > 归一标题 > Scholar ID。"""
     if rec.get("doi"):
         return "doi:" + norm_doi(rec["doi"])
     if rec.get("arxiv"):
@@ -69,7 +74,11 @@ def canonical_key(rec):
     if rec.get("bibcode"):
         return "ads:" + str(rec["bibcode"])
     nt = norm_title(rec.get("title"))
-    return "title:" + nt if nt else None
+    if nt:
+        return "title:" + nt
+    if rec.get("scholar_result_id"):
+        return "scholar:" + str(rec["scholar_result_id"])
+    return None
 
 
 def classify_id(s):
@@ -114,6 +123,11 @@ class Inspire:
                 sys.stderr.write(f"  [inspire 网络错误 attempt={attempt}] {ex}\n")
                 time.sleep(1 + attempt)
         return None
+
+    def ping(self):
+        """轻量联网探测。能拿到 JSON 响应即认为该源可用。"""
+        data = self._get({"fields": "control_number", "size": 1}, timeout=10)
+        return data is not None
 
     def _parse_hit(self, md):
         rec = blank_rec(); rec["sources"] = ["inspire"]
@@ -230,6 +244,13 @@ class Ads:
                 time.sleep(1 + attempt)
         return None
 
+    def ping(self):
+        """轻量联网探测。无 token 或鉴权失败都会返回 False。"""
+        if not self.enabled:
+            return False
+        data = self._get({"q": "*:*", "fl": "bibcode", "rows": 0}, timeout=10)
+        return data is not None
+
     def _parse_doc(self, d):
         rec = blank_rec(); rec["sources"] = ["ads"]
         rec["bibcode"] = d.get("bibcode")
@@ -284,17 +305,159 @@ class Ads:
                            sort="citation_count desc")
 
 
+# -------------------------- Google Scholar --------------------------
+
+class Scholar:
+    """Google Scholar 搜索源。通过 SerpApi 调用,不直接抓 scholar.google.com。"""
+    name = "scholar"
+
+    def __init__(self, token, pause=0.5):
+        self.token = token
+        self.enabled = bool(token)
+        self.s = requests.Session()
+        self.s.headers.update({"User-Agent": UA})
+        self.pause = pause
+
+    def _get(self, params, timeout=40):
+        if not self.enabled:
+            return None
+        params = dict(params)
+        params.setdefault("engine", "google_scholar")
+        params["api_key"] = self.token
+        for attempt in range(3):
+            try:
+                r = self.s.get(SERPAPI_API, params=params, timeout=timeout)
+                if r.status_code == 429:
+                    sys.stderr.write("  [scholar/serpapi 限流,等待…]\n")
+                    time.sleep(5 + 3 * attempt)
+                    continue
+                if r.status_code in (401, 403):
+                    sys.stderr.write("  [scholar/serpapi 鉴权失败:检查 SERPAPI_API_KEY]\n")
+                    self.enabled = False
+                    return None
+                if r.status_code != 200:
+                    sys.stderr.write(f"  [scholar/serpapi HTTP {r.status_code}]\n")
+                    return None
+                data = r.json()
+                if data.get("error"):
+                    sys.stderr.write(f"  [scholar/serpapi 错误] {data['error']}\n")
+                    return None
+                time.sleep(self.pause)
+                return data
+            except Exception as ex:
+                sys.stderr.write(f"  [scholar/serpapi 网络错误 attempt={attempt}] {ex}\n")
+                time.sleep(1 + attempt)
+        return None
+
+    def ping(self):
+        """轻量联网探测。注意:SerpApi 侧通常会计一次查询。"""
+        data = self._get({"q": "test", "num": 1}, timeout=10)
+        return data is not None
+
+    def _parse_result(self, r, force_kind=None, force_value=None):
+        rec = blank_rec()
+        rec["sources"] = ["scholar"]
+        rec["title"] = r.get("title") or ""
+        rec["url"] = r.get("link") or None
+        rec["scholar_result_id"] = r.get("result_id")
+        rec["abstract"] = r.get("snippet") or ""
+
+        pub = r.get("publication_info") or {}
+        summary = pub.get("summary") or ""
+        if summary:
+            ym = re.search(r"\b(?:19|20)\d{2}\b", summary)
+            if ym:
+                rec["year"] = int(ym.group(0))
+            authors_part = summary.split(" - ")[0]
+            rec["authors"] = [a.strip() for a in authors_part.split(",") if a.strip()][:6]
+
+        inline = r.get("inline_links") or {}
+        cited = inline.get("cited_by") or {}
+        rec["citation_count"] = cited.get("total") or 0
+        rec["scholar_cites_id"] = cited.get("cites_id")
+        versions = inline.get("versions") or {}
+        rec["scholar_cluster_id"] = versions.get("cluster_id")
+
+        if force_kind == "arxiv":
+            rec["arxiv"] = norm_arxiv(force_value)
+        elif force_kind == "doi":
+            rec["doi"] = norm_doi(force_value)
+        elif force_kind == "bibcode":
+            rec["bibcode"] = force_value
+
+        rec["key"] = canonical_key(rec)
+        return rec
+
+    def search(self, query, rows=10, cites_id=None):
+        params = {"num": max(1, min(int(rows or 10), 20))}
+        if cites_id:
+            params["cites"] = str(cites_id)
+            if query:
+                params["q"] = query
+        else:
+            params["q"] = query
+        data = self._get(params)
+        return [self._parse_result(r) for r in (data or {}).get("organic_results", [])]
+
+    def resolve(self, kind, value):
+        if kind == "arxiv":
+            q = f'arxiv "{value}"'
+        elif kind == "doi":
+            q = f'"{value}"'
+        elif kind == "bibcode":
+            q = f'"{value}"'
+        elif kind == "recid":
+            return None
+        else:
+            q = f'"{value}"'
+        data = self._get({"q": q, "num": 1})
+        hits = (data or {}).get("organic_results") or []
+        return self._parse_result(hits[0], force_kind=kind, force_value=value) if hits else None
+
+    def backward(self, node, cap):
+        # Google Scholar 搜索结果不提供参考文献列表;这里只作为搜索/施引补充源。
+        return []
+
+    def forward(self, node, cap):
+        cites_id = node.get("scholar_cites_id")
+        if not cites_id:
+            return []
+        return self.search("", rows=min(cap, 20), cites_id=cites_id)
+
+
 # --------------------------- 工厂 + 自测 ---------------------------
 
 def build_clients(pause=None):
-    """按环境变量装配可用数据源。INSPIRE 总在;ADS 仅当 ADS_DEV_KEY 存在。"""
-    ins = Inspire()
-    ads = Ads(os.environ.get("ADS_DEV_KEY", "").strip())
-    clients = [ins]
-    if ads.enabled:
-        clients.append(ads)
-    else:
-        sys.stderr.write("  [提示] 未检测到 ADS_DEV_KEY → 只用 INSPIRE 单源(astro 覆盖会变弱)。\n")
+    """按环境变量装配可用数据源。每个源先联网探测,能连上才加入。"""
+    inspire_pause = 0.4 if pause is None else pause
+    ads_pause = 0.5 if pause is None else pause
+    scholar_pause = 0.5 if pause is None else pause
+    clients = []
+    serpapi_key = (os.environ.get("SERPAPI_API_KEY") or os.environ.get("SERP_API_KEY") or "").strip()
+    candidates = [
+        Inspire(pause=inspire_pause),
+        Ads(os.environ.get("ADS_DEV_KEY", "").strip(), pause=ads_pause),
+        Scholar(serpapi_key, pause=scholar_pause),
+    ]
+    for c in candidates:
+        if not c.enabled:
+            if c.name == "ads":
+                sys.stderr.write("  [提示] 未检测到 ADS_DEV_KEY → 跳过 ADS(astro 覆盖会变弱)。\n")
+            elif c.name == "scholar":
+                sys.stderr.write("  [提示] 未检测到 SERPAPI_API_KEY → 跳过 Google Scholar 搜索源。\n")
+            continue
+        try:
+            ok = c.ping()
+        except Exception as ex:
+            sys.stderr.write(f"  [{c.name} 联网探测失败] {ex}\n")
+            ok = False
+        if ok:
+            clients.append(c)
+            sys.stderr.write(f"  [{c.name} 可用]\n")
+        else:
+            sys.stderr.write(f"  [{c.name} 不可用,已跳过]\n")
+    if not clients:
+        sys.stderr.write("  [警告] 没有可用数据源。\n")
     return clients
 
 

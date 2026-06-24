@@ -1,7 +1,8 @@
 # survey-snowball —— 引文图驱动的专题调研工具
 
 从种子论文沿引文图雪球式铺开 → 初筛 → 逐篇证据卡片 → 三轴综述(前人做了什么 / 可行性 / 突破口)。
-数据源:**INSPIRE-HEP**(免 key)+ **NASA ADS**(需 token)。LLM 全走 DeepSeek。
+数据源:**INSPIRE-HEP**(免 key)+ **NASA ADS**(需 token)+ **Google Scholar via SerpApi**(需 token)。LLM 全走 DeepSeek。
+Google Scholar 没有官方公开 API;本工具只通过 SerpApi 做搜索/施引补充,不直接抓取 scholar.google.com。
 
 ## 目录
 
@@ -27,7 +28,8 @@ skills/survey-snowball/
 ```bash
 # key 写在 ~/.zshrc 时,在交互式终端里:
 export DEEPSEEK_API_KEY=sk-...
-export ADS_DEV_KEY=...        # 可选;无则只用 INSPIRE
+export ADS_DEV_KEY=...        # 可选;启用 ADS
+export SERPAPI_API_KEY=...    # 可选;启用 Google Scholar 搜索源
 ./snowball.sh "2504.08514" --topic "用准万有关系约束中子星状态方程的可行性"
 ```
 
@@ -41,11 +43,11 @@ python3 skills/survey-snowball/scripts/sources.py 2504.08514
 ## 可分享性(本工具不绑定任何个人信息)
 
 - 脚本全部用 `__file__` 自定位,`snowball.sh` 用相对 `ROOT` —— **无任何 `/Users/...` 绝对路径、无用户名**。
-- 所有 key 走环境变量(`DEEPSEEK_API_KEY` / `ADS_DEV_KEY`)—— **key 不写进任何文件**。
+- 所有 key 走环境变量(`DEEPSEEK_API_KEY` / `ADS_DEV_KEY` / `SERPAPI_API_KEY`)—— **key 不写进任何文件**。
 - 唯一的"个人内容"是可选的 `config/interest.md`(长期画像),默认空模板。
 
 **分享前**:① 清空 `.cache/`(下载的论文摘要等中间产物);② `config/interest.md` 留空或换成对方的;
-③ 让对方自备 `DEEPSEEK_API_KEY`、(可选)`ADS_DEV_KEY`。代码无需改动。
+③ 让对方自备 `DEEPSEEK_API_KEY`、(可选)`ADS_DEV_KEY` / `SERPAPI_API_KEY`。代码无需改动。
 
 ## 申请 ADS token
 
