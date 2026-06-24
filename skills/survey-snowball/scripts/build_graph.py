@@ -147,15 +147,16 @@ def main():
             for c in citers:
                 merge(pool, c, depth=1, via="forward-citers")
                 all_citers.append(c)
-        # 只对前 expand_citers 个高被引施引者再取其参考文献
-        all_citers = topcap(all_citers, args.expand_citers)
-        sys.stderr.write(f"  对 {len(all_citers)} 个高被引施引者取其参考文献…\n")
-        for i, citer in enumerate(all_citers, 1):
-            refs = expand_backward(clients, citer, K)
-            if i % 20 == 0 or i == len(all_citers):
-                sys.stderr.write(f"    [{i}/{len(all_citers)}] 累计池 {len(pool)}\n")
-            for r in refs:
-                merge(pool, r, depth=2, via="forward-refs")
+        if D>1:
+            # 只对前 expand_citers 个高被引施引者再取其参考文献
+            all_citers = topcap(all_citers, args.expand_citers)
+            sys.stderr.write(f"  对 {len(all_citers)} 个高被引施引者取其参考文献…\n")
+            for i, citer in enumerate(all_citers, 1):
+                refs = expand_backward(clients, citer, K)
+                if i % 20 == 0 or i == len(all_citers):
+                    sys.stderr.write(f"    [{i}/{len(all_citers)}] 累计池 {len(pool)}\n")
+                for r in refs:
+                    merge(pool, r, depth=2, via="forward-refs")
 
     # 3) 去种子 + 总池截断
     #    截断优先级:先按 depth 升序(第一层 > 第二层,保证第一层不被第二层挤掉),
